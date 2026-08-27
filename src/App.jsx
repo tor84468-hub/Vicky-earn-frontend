@@ -1,950 +1,794 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = "https://vicky-earn-backend.onrender.com";
 
 function App() {
-  const savedUser = localStorage.getItem("vicky_user");
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("vicky_user")) || null;
+    } catch {
+      return null;
+    }
+  });
 
-  const [user, setUser] = useState(
-    savedUser ? JSON.parse(savedUser) : null
-  );
-
-  const [mode, setMode] = useState("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [page, setPage] = useState("dashboard");
+  const [authMode, setAuthMode] = useState("login");
   const [loading, setLoading] = useState(false);
-  const [bonusLoading, setBonusLoading] = useState(false);
-  const [bonusMessage, setBonusMessage] = useState("");
-  const [activeTab, setActiveTab] = useState("home");
-  const [currencies, setCurrencies] = useState({});
-  const [currencyLoading, setCurrencyLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  // Transfer state
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [recipientAccountId, setRecipientAccountId] = useState("");
+  const [auth, setAuth] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  const [wallet, setWallet] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [profile, setProfile] = useState(null);
+
+  const [withdrawForm, setWithdrawForm] = useState({
+    amount: "",
+    method: "bank",
+    account: "",
+  });
+
+  const [transferForm, setTransferForm] = useState({
+    recipient_account_id: "",
+    amount: "",
+  });
+
   const [recipient, setRecipient] = useState(null);
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferQuote, setTransferQuote] = useState(null);
-  const [recipientLoading, setRecipientLoading] = useState(false);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [transferLoading, setTransferLoading] = useState(false);
-  const [transferMessage, setTransferMessage] = useState("");
-  const [transferError, setTransferError] = useState("");
 
-  useEffect(() => {
-    if (!user) return;
+  const [currency, setCurrency] = useState("");
 
-    localStorage.setItem("vicky_user", JSON.stringify(user));
+  function saveUser(nextUser) {
+    setUser(nextUser);
+    localStorage.setItem("vicky_user", JSON.stringify(nextUser));
+  }
 
-    fetch(`${API_URL}/api/currencies`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setCurrencies(data.currencies);
-        }
-      })
-      .catch(() => {});
-  }, [user]);
+  function logout() {
+    localStorage.removeItem("vicky_user");
+    setUser(null);
+    setWallet(null);
+    setProfile(null);
+    setPage("dashboard");
+  }
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setMessage("");
-    setLoading(true);
+  async function api(path, options = {}) {
+    const response = await fetch(`${API_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
 
-    const endpoint =
-      mode === "login"
-        ? "/api/auth/login"
-        : "/api/auth/register";
+    const data = await response.json().catch(() => ({
+      success: false,
+      message: "Invalid server response",
+    }));
 
-    const body =
-      mode === "login"
-        ? { email, password }
-        : { name, email, password };
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+  }
+
+  async function loadUserData() {
+    if (!user?.id) return;
 
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const [
+        walletResponse,
+        taskResponse,
+        transactionResponse,
+        notificationResponse,
+        profileResponse,
+      ] = await Promise.all([
+        api(`/api/wallet/${user.id}`),
+        api(`/api/earn/tasks`),
+        api(`/api/transactions/${user.id}`),
+        api(`/api/notifications/${user.id}`),
+        api(`/api/profile/${user.id}`),
+      ]);
+
+      setWallet(walletResponse.wallet);
+      setTasks(taskResponse.tasks || []);
+      setTransactions(transactionResponse.transactions || []);
+      setNotifications(notificationResponse.notifications || []);
+      setProfile(profileResponse.user);
+      setCurrency(walletResponse.wallet.currency);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUserData();
+    }
+  }, [user?.id]);
+
+  async function handleAuth(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const path =
+        authMode === "login"
+          ? "/api/auth/login"
+          : "/api/auth/register";
+
+      const body =
+        authMode === "login"
+          ? {
+              email: auth.email,
+              password: auth.password,
+            }
+          : auth;
+
+      const data = await api(path, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
+      saveUser(data.user);
+      setMessage(data.message || "Success");
+      setPage("dashboard");
 
-      if (!response.ok) {
-        throw new Error(data.message || "Something went wrong");
+      if (authMode === "register") {
+        setAuth({
+          name: "",
+          email: "",
+          password: "",
+        });
       }
-
-      if (mode === "register") {
-        setMessage("Account created successfully. Please login.");
-        setMode("login");
-        setName("");
-        setPassword("");
-      } else {
-        setUser(data.user);
-        setPassword("");
-      }
-    } catch (error) {
-      setMessage(error.message);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const changeCurrency = async (newCurrency) => {
-    if (!newCurrency || newCurrency === user.currency) return;
+  async function claimDailyBonus() {
+    if (!user?.id) return;
 
-    setCurrencyLoading(true);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/user/currency`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-            currency: newCurrency,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Currency update failed");
-      }
-
-      setUser(data.user);
-      setBonusMessage(
-        `Currency changed to ${newCurrency}`
-      );
-    } catch (error) {
-      setBonusMessage(error.message);
-    } finally {
-      setCurrencyLoading(false);
-    }
-  };
-
-  const getCurrency = () => {
-    return (
-      currencies[user.currency] || {
-        symbol: user.currency === "USD" ? "$" : "₦",
-        flag: "🌍",
-        name: user.currency || "Currency",
-      }
-    );
-  };
-
-  const claimDailyBonus = async () => {
-    setBonusLoading(true);
-    setBonusMessage("");
+    setLoading(true);
+    setError("");
+    setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/earn/daily-bonus`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to claim bonus");
-      }
-
-      setUser({
-        ...user,
-        balance: data.balance,
+      const data = await api("/api/earn/daily-bonus", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: user.id,
+        }),
       });
 
-      setBonusMessage(`+₦${data.amount} added to your wallet`);
-    } catch (error) {
-      setBonusMessage(error.message);
+      setMessage(`You earned ${data.amount} ${wallet?.currency || ""}`);
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setBonusLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
-  const openTransfer = () => {
-    setTransferOpen(true);
-    setRecipientAccountId("");
-    setRecipient(null);
-    setTransferAmount("");
-    setTransferQuote(null);
-    setTransferMessage("");
-    setTransferError("");
-  };
+  async function completeTask(taskId) {
+    if (!user?.id) return;
 
-  const closeTransfer = () => {
-    if (transferLoading) return;
-
-    setTransferOpen(false);
-    setRecipientAccountId("");
-    setRecipient(null);
-    setTransferAmount("");
-    setTransferQuote(null);
-    setTransferMessage("");
-    setTransferError("");
-  };
-
-  const findRecipient = async () => {
-    const accountId = recipientAccountId.trim().toUpperCase();
-
-    setTransferError("");
-    setTransferMessage("");
-    setRecipient(null);
-    setTransferQuote(null);
-
-    if (!accountId) {
-      setTransferError("Enter the recipient's Account ID.");
-      return;
-    }
-
-    if (accountId === String(user.account_id || "").toUpperCase()) {
-      setTransferError("You cannot transfer money to yourself.");
-      return;
-    }
-
-    setRecipientLoading(true);
+    setLoading(true);
+    setError("");
+    setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/transfer/recipient`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            account_id: accountId,
-          }),
-        }
-      );
+      const data = await api("/api/earn/tasks/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: user.id,
+          task_id: taskId,
+        }),
+      });
 
-      const data = await response.json();
+      setMessage(`You earned ${data.amount} ${wallet?.currency || ""}`);
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Recipient Account ID not found."
-        );
-      }
+  async function findRecipient() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    setRecipient(null);
+
+    try {
+      const data = await api("/api/transfer/recipient", {
+        method: "POST",
+        body: JSON.stringify({
+          account_id: transferForm.recipient_account_id,
+        }),
+      });
 
       setRecipient(data.recipient);
-    } catch (error) {
-      setTransferError(error.message);
+      setMessage("Recipient found");
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setRecipientLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
-  const getTransferQuote = async () => {
-    setTransferError("");
-    setTransferMessage("");
-    setTransferQuote(null);
+  async function sendTransfer(event) {
+    event.preventDefault();
 
-    const amount = Number(transferAmount);
+    if (!user?.id) return;
 
-    if (!recipient) {
-      setTransferError("Find the recipient first.");
-      return;
-    }
-
-    if (!amount || amount <= 0) {
-      setTransferError("Enter a valid amount.");
-      return;
-    }
-
-    if (amount > Number(user.balance)) {
-      setTransferError("Insufficient balance.");
-      return;
-    }
-
-    setQuoteLoading(true);
+    setLoading(true);
+    setError("");
+    setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/transfer/quote`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            account_id: user.account_id,
-            recipient_account_id: recipient.account_id,
-            amount,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Unable to calculate transfer."
-        );
-      }
-
-      setTransferQuote(data.quote);
-    } catch (error) {
-      setTransferError(error.message);
-    } finally {
-      setQuoteLoading(false);
-    }
-  };
-
-  const confirmTransfer = async () => {
-    if (!transferQuote) {
-      setTransferError("Calculate the transfer amount first.");
-      return;
-    }
-
-    setTransferLoading(true);
-    setTransferError("");
-    setTransferMessage("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/transfer`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            account_id: user.account_id,
-            recipient_account_id: recipient.account_id,
-            amount: Number(transferAmount),
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Transfer failed."
-        );
-      }
-
-      setUser({
-        ...user,
-        balance: data.sender.balance,
+      const data = await api("/api/transfer", {
+        method: "POST",
+        body: JSON.stringify({
+          account_id: wallet?.account_id,
+          recipient_account_id: transferForm.recipient_account_id,
+          amount: Number(transferForm.amount),
+        }),
       });
 
-      setTransferMessage(
-        `Sent ${Number(data.sender.amount).toLocaleString()} ${data.sender.currency} to ${data.recipient.name}. They received ${Number(data.recipient.amount).toLocaleString(undefined, {
-          maximumFractionDigits: 8,
-        })} ${data.recipient.currency}.`
+      setMessage(
+        `Transfer successful. Sent ${data.sender.amount} ${data.sender.currency}.`
       );
 
-      setTransferAmount("");
-      setTransferQuote(null);
+      setTransferForm({
+        recipient_account_id: "",
+        amount: "",
+      });
 
-    } catch (error) {
-      setTransferError(error.message);
+      setRecipient(null);
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setTransferLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
-  const logout = () => {
-    localStorage.removeItem("vicky_user");
-    setUser(null);
-    setEmail("");
-    setPassword("");
+  async function withdraw(event) {
+    event.preventDefault();
+
+    if (!user?.id) return;
+
+    setLoading(true);
+    setError("");
     setMessage("");
-  };
+
+    try {
+      const data = await api("/api/wallet/withdraw", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: user.id,
+          amount: Number(withdrawForm.amount),
+          method: withdrawForm.method,
+          account: withdrawForm.account,
+        }),
+      });
+
+      setMessage(
+        `Withdrawal requested: ${data.amount} ${wallet?.currency || ""}`
+      );
+
+      setWithdrawForm({
+        amount: "",
+        method: "bank",
+        account: "",
+      });
+
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function changeCurrency(event) {
+    const nextCurrency = event.target.value;
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const data = await api("/api/user/currency", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: user.id,
+          currency: nextCurrency,
+        }),
+      });
+
+      setCurrency(nextCurrency);
+      saveUser(data.user);
+      setMessage("Currency updated successfully");
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateProfile(event) {
+    event.preventDefault();
+
+    if (!profile?.name) return;
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const data = await api(`/api/profile/${user.id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: profile.name,
+        }),
+      });
+
+      setProfile(data.user);
+      saveUser({
+        ...user,
+        ...data.user,
+      });
+
+      setMessage("Profile updated successfully");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markNotificationRead(id) {
+    try {
+      await api(`/api/notifications/${id}/read`, {
+        method: "POST",
+      });
+
+      await loadUserData();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   if (!user) {
     return (
-      <div className="auth-screen">
-        <div className="auth-glow glow-one" />
-        <div className="auth-glow glow-two" />
-
-        <div className="auth-container">
-          <div className="brand-mark">
-            <span>V</span>
+      <div className="app auth-screen">
+        <div className="auth-card">
+          <div className="brand">
+            <h1>Vicky Earn</h1>
+            <p>Earn. Save. Transfer. Withdraw.</p>
           </div>
 
-          <div className="brand-name">Vicky Earn</div>
-
-          <h1>
-            {mode === "login"
-              ? "Welcome back"
-              : "Start earning today"}
-          </h1>
-
-          <p className="auth-description">
-            {mode === "login"
-              ? "Sign in to continue to your wallet."
-              : "Create your account and start earning rewards."}
-          </p>
-
-          <form onSubmit={submit} className="auth-form">
-            {mode === "register" && (
-              <div className="field">
-                <label>Full name</label>
-                <input
-                  type="text"
-                  placeholder="Victor"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-
-            <div className="field">
-              <label>Email address</label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field">
-              <label>Password</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength="6"
-              />
-            </div>
+          <div className="auth-tabs">
+            <button
+              className={authMode === "login" ? "active" : ""}
+              onClick={() => setAuthMode("login")}
+            >
+              Login
+            </button>
 
             <button
-              className="primary-button"
-              disabled={loading}
+              className={authMode === "register" ? "active" : ""}
+              onClick={() => setAuthMode("register")}
             >
+              Register
+            </button>
+          </div>
+
+          {error && <div className="alert error">{error}</div>}
+          {message && <div className="alert success">{message}</div>}
+
+          <form onSubmit={handleAuth}>
+            {authMode === "register" && (
+              <input
+                placeholder="Full name"
+                value={auth.name}
+                onChange={(e) =>
+                  setAuth({ ...auth, name: e.target.value })
+                }
+                required
+              />
+            )}
+
+            <input
+              type="email"
+              placeholder="Email"
+              value={auth.email}
+              onChange={(e) =>
+                setAuth({ ...auth, email: e.target.value })
+              }
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Password"
+              value={auth.password}
+              onChange={(e) =>
+                setAuth({ ...auth, password: e.target.value })
+              }
+              required
+            />
+
+            <button className="primary" disabled={loading}>
               {loading
                 ? "Please wait..."
-                : mode === "login"
-                  ? "Sign in"
-                  : "Create account"}
+                : authMode === "login"
+                ? "Login"
+                : "Create account"}
             </button>
           </form>
-
-          {message && (
-            <div className="auth-message">
-              {message}
-            </div>
-          )}
-
-          <div className="auth-switch">
-            {mode === "login" ? (
-              <>
-                New to Vicky Earn?
-                <button
-                  onClick={() => {
-                    setMode("register");
-                    setMessage("");
-                  }}
-                >
-                  Create account
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?
-                <button
-                  onClick={() => {
-                    setMode("login");
-                    setMessage("");
-                  }}
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <div className="mini-logo">V</div>
+  const balance = wallet?.balance ?? user.balance ?? 0;
+  const currentCurrency = wallet?.currency || currency || "NGN";
 
-          <div>
-            <strong>Vicky Earn</strong>
-            <span>Earn more. Live better.</span>
-          </div>
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div>
+          <h1>Vicky Earn</h1>
+          <span>Welcome, {user.name}</span>
         </div>
 
-        <button className="notification-button">
-          <span>🔔</span>
-          <i />
-        </button>
+        <button onClick={logout}>Logout</button>
       </header>
 
-      <main className="dashboard">
-        <section className="welcome-row">
-          <div>
-            <p className="eyebrow">WELCOME BACK</p>
-            <h1>{user.name} 👋</h1>
-          </div>
+      <main className="container">
+        {error && <div className="alert error">{error}</div>}
+        {message && <div className="alert success">{message}</div>}
 
-          <div className="profile-avatar">
-            {user.name.charAt(0).toUpperCase()}
-          </div>
+        <section className="balance-card">
+          <span>Available Balance</span>
+          <strong>
+            {Number(balance).toLocaleString()} {currentCurrency}
+          </strong>
+
+          <small>
+            Account ID: {wallet?.account_id || "Loading..."}
+          </small>
         </section>
 
-        <section className="wallet-card">
-          <div className="wallet-top">
-            <span>Available balance</span>
-
-            <button className="eye-button">
-              ◉
-            </button>
-          </div>
-
-          <div className="wallet-balance">
-            {getCurrency().symbol}
-            {Number(user.balance).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </div>
-
-          <div className="currency-selector">
-            <span>{getCurrency().flag}</span>
-
-            <select
-              value={user.currency || "NGN"}
-              onChange={(e) => changeCurrency(e.target.value)}
-              disabled={currencyLoading}
+        <nav className="nav">
+          {[
+            ["dashboard", "Dashboard"],
+            ["earn", "Earn"],
+            ["transfer", "Transfer"],
+            ["withdraw", "Withdraw"],
+            ["transactions", "Transactions"],
+            ["notifications", "Notifications"],
+            ["profile", "Profile"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              className={page === value ? "active" : ""}
+              onClick={() => setPage(value)}
             >
-              {Object.entries(currencies).map(
-                ([code, info]) => (
-                  <option key={code} value={code}>
-                    {code} — {info.name}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
+              {label}
+            </button>
+          ))}
+        </nav>
 
-          <div className="wallet-footer">
-            <span>Vicky Earn Wallet</span>
-            <span>
-              {user.account_id || "Generating account number..."}
-            </span>
-          </div>
-        </section>
-
-        <section className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon">↗</div>
-            <div>
-              <span>Total earned</span>
-              <strong>
-                {getCurrency().symbol}
-                {Number(user.balance).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </strong>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">✓</div>
-            <div>
-              <span>Tasks completed</span>
-              <strong>0</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="actions">
-          <button onClick={claimDailyBonus}>
-            <div className="action-icon">🎁</div>
-            <span>Daily bonus</span>
-          </button>
-
-          <button
-            onClick={() =>
-              alert("Withdrawal system coming next.")
-            }
-          >
-            <div className="action-icon">💸</div>
-            <span>Withdraw</span>
-          </button>
-
-          <button onClick={openTransfer}>
-            <div className="action-icon">↗</div>
-            <span>Transfer</span>
-          </button>
-
-          <button
-            onClick={() =>
-              setActiveTab("history")
-            }
-          >
-            <div className="action-icon">☷</div>
-            <span>History</span>
-          </button>
-        </section>
-
-        {bonusMessage && (
-          <div className="bonus-alert">
-            <span>✓</span>
-            {bonusMessage}
-          </div>
-        )}
-
-        {activeTab === "history" ? (
-          <section className="content-section">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">ACTIVITY</p>
-                <h2>Recent transactions</h2>
-              </div>
+        {page === "dashboard" && (
+          <section className="grid">
+            <div className="card">
+              <h2>Daily Bonus</h2>
+              <p>Claim your daily earning.</p>
+              <button
+                className="primary"
+                onClick={claimDailyBonus}
+                disabled={loading}
+              >
+                Claim 10
+              </button>
             </div>
 
-            <div className="empty-state">
-              <div>📊</div>
-              <h3>No transactions yet</h3>
-              <p>
-                Your earning activity will appear here.
-              </p>
+            <div className="card">
+              <h2>Quick Transfer</h2>
+              <p>Send money using a Vicky account ID.</p>
+              <button
+                className="primary"
+                onClick={() => setPage("transfer")}
+              >
+                Send Money
+              </button>
+            </div>
+
+            <div className="card">
+              <h2>Withdraw</h2>
+              <p>Request a withdrawal from your balance.</p>
+              <button
+                className="primary"
+                onClick={() => setPage("withdraw")}
+              >
+                Withdraw
+              </button>
+            </div>
+
+            <div className="card">
+              <h2>Recent Activity</h2>
+              {transactions.slice(0, 5).map((item) => (
+                <div className="list-row" key={item.id}>
+                  <span>{item.description}</span>
+                  <strong>
+                    {item.amount} {item.currency}
+                  </strong>
+                </div>
+              ))}
             </div>
           </section>
-        ) : (
-          <>
-            <section className="content-section">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">EARN MORE</p>
-                  <h2>Featured opportunities</h2>
-                </div>
-
-                <button>View all</button>
-              </div>
-
-              <div className="earning-card featured">
-                <div className="earning-icon">🎁</div>
-
-                <div className="earning-info">
-                  <div className="tag">DAILY</div>
-                  <h3>Daily Bonus</h3>
-                  <p>
-                    Claim your reward once every day.
-                  </p>
-                </div>
-
-                <button
-                  onClick={claimDailyBonus}
-                  disabled={bonusLoading}
-                  className="earn-button"
-                >
-                  {bonusLoading ? "..." : "+₦10"}
-                </button>
-              </div>
-
-              <div className="earning-card">
-                <div className="earning-icon purple">📱</div>
-
-                <div className="earning-info">
-                  <div className="tag">TASK</div>
-                  <h3>Complete Tasks</h3>
-                  <p>
-                    Complete simple tasks and earn rewards.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() =>
-                    alert("Tasks are coming next.")
-                  }
-                  className="earn-button"
-                >
-                  Earn
-                </button>
-              </div>
-
-              <div className="earning-card">
-                <div className="earning-icon orange">👥</div>
-
-                <div className="earning-info">
-                  <div className="tag">REFER</div>
-                  <h3>Invite Friends</h3>
-                  <p>
-                    Invite friends and earn referral rewards.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() =>
-                    alert("Referrals are coming next.")
-                  }
-                  className="earn-button"
-                >
-                  Invite
-                </button>
-              </div>
-            </section>
-
-            <section className="referral-banner">
-              <div className="referral-icon">👥</div>
-
-              <div>
-                <span>REFER & EARN</span>
-                <h3>Earn more with friends</h3>
-                <p>
-                  Invite friends to Vicky Earn.
-                </p>
-              </div>
-
-              <button
-                onClick={() =>
-                  alert("Referral system coming next.")
-                }
-              >
-                Invite
-              </button>
-            </section>
-          </>
         )}
 
-        <button className="logout-button" onClick={logout}>
-          Log out
-        </button>
-      </main>
-
-      {transferOpen && (
-        <div className="transfer-overlay">
-          <div className="transfer-modal">
-            <div className="transfer-header">
-              <div>
-                <p className="eyebrow">SEND MONEY</p>
-                <h2>Transfer</h2>
-              </div>
+        {page === "earn" && (
+          <section>
+            <div className="card">
+              <h2>Earn Money</h2>
 
               <button
-                className="transfer-close"
-                onClick={closeTransfer}
-                disabled={transferLoading}
+                className="primary"
+                onClick={claimDailyBonus}
+                disabled={loading}
               >
-                ×
+                Claim Daily Bonus
               </button>
             </div>
 
-            <div className="transfer-balance">
-              Available:{" "}
-              <strong>
-                {getCurrency().symbol}
-                {Number(user.balance).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </strong>
-            </div>
+            <div className="grid">
+              {tasks.map((task) => (
+                <div className="card" key={task.id}>
+                  <h3>{task.title}</h3>
+                  <p>{task.description}</p>
+                  <strong>
+                    +{task.reward} {currentCurrency}
+                  </strong>
 
-            <div className="field">
-              <label>Recipient Account ID</label>
-
-              <div className="account-search">
-                <input
-                  type="text"
-                  placeholder="VKY-XXXXXX"
-                  value={recipientAccountId}
-                  onChange={(e) => {
-                    setRecipientAccountId(
-                      e.target.value.toUpperCase()
-                    );
-                    setRecipient(null);
-                    setTransferQuote(null);
-                    setTransferError("");
-                  }}
-                />
-
-                <button
-                  onClick={findRecipient}
-                  disabled={recipientLoading}
-                >
-                  {recipientLoading ? "..." : "Find"}
-                </button>
-              </div>
-            </div>
-
-            {recipient && (
-              <div className="recipient-card">
-                <div className="recipient-avatar">
-                  {recipient.name.charAt(0).toUpperCase()}
+                  <button
+                    className="primary"
+                    onClick={() => completeTask(task.id)}
+                    disabled={loading}
+                  >
+                    Complete
+                  </button>
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-                <div>
-                  <span>Sending to</span>
+        {page === "transfer" && (
+          <section className="card">
+            <h2>Send Money</h2>
+
+            <form onSubmit={sendTransfer}>
+              <input
+                placeholder="Recipient Account ID"
+                value={transferForm.recipient_account_id}
+                onChange={(e) =>
+                  setTransferForm({
+                    ...transferForm,
+                    recipient_account_id: e.target.value.toUpperCase(),
+                  })
+                }
+                required
+              />
+
+              <button
+                type="button"
+                onClick={findRecipient}
+                disabled={loading}
+              >
+                Find Recipient
+              </button>
+
+              {recipient && (
+                <div className="recipient">
                   <strong>{recipient.name}</strong>
-                  <small>
-                    {recipient.account_id} · {recipient.currency}
-                  </small>
+                  <span>{recipient.account_id}</span>
+                  <span>{recipient.currency}</span>
                 </div>
+              )}
 
-                <span className="recipient-check">✓</span>
-              </div>
-            )}
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder={`Amount in ${currentCurrency}`}
+                value={transferForm.amount}
+                onChange={(e) =>
+                  setTransferForm({
+                    ...transferForm,
+                    amount: e.target.value,
+                  })
+                }
+                required
+              />
 
-            {recipient && (
-              <div className="field">
-                <label>
-                  Amount ({user.currency})
-                </label>
+              <button
+                className="primary"
+                type="submit"
+                disabled={loading || !recipient}
+              >
+                Send Money
+              </button>
+            </form>
+          </section>
+        )}
 
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={transferAmount}
-                  onChange={(e) => {
-                    setTransferAmount(e.target.value);
-                    setTransferQuote(null);
-                    setTransferError("");
-                  }}
-                />
+        {page === "withdraw" && (
+          <section className="card">
+            <h2>Withdraw Money</h2>
 
-                <button
-                  className="quote-button"
-                  onClick={getTransferQuote}
-                  disabled={quoteLoading}
-                >
-                  {quoteLoading
-                    ? "Calculating..."
-                    : "Calculate conversion"}
-                </button>
-              </div>
-            )}
+            <form onSubmit={withdraw}>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder={`Amount in ${currentCurrency}`}
+                value={withdrawForm.amount}
+                onChange={(e) =>
+                  setWithdrawForm({
+                    ...withdrawForm,
+                    amount: e.target.value,
+                  })
+                }
+                required
+              />
 
-            {transferQuote && (
-              <div className="transfer-quote">
-                <div className="quote-title">
-                  Transfer preview
-                </div>
+              <select
+                value={withdrawForm.method}
+                onChange={(e) =>
+                  setWithdrawForm({
+                    ...withdrawForm,
+                    method: e.target.value,
+                  })
+                }
+              >
+                <option value="bank">Bank</option>
+                <option value="mobile_money">Mobile Money</option>
+                <option value="other">Other</option>
+              </select>
 
-                <div className="quote-row">
-                  <span>You send</span>
+              <input
+                placeholder="Account / phone number"
+                value={withdrawForm.account}
+                onChange={(e) =>
+                  setWithdrawForm({
+                    ...withdrawForm,
+                    account: e.target.value,
+                  })
+                }
+                required
+              />
+
+              <button className="primary" disabled={loading}>
+                Submit Withdrawal
+              </button>
+            </form>
+          </section>
+        )}
+
+        {page === "transactions" && (
+          <section className="card">
+            <h2>Transaction History</h2>
+
+            {transactions.length === 0 ? (
+              <p>No transactions yet.</p>
+            ) : (
+              transactions.map((item) => (
+                <div className="transaction" key={item.id}>
+                  <div>
+                    <strong>{item.type}</strong>
+                    <p>{item.description}</p>
+                    <small>{item.created_at}</small>
+                  </div>
+
                   <strong>
-                    {Number(
-                      transferQuote.send_amount
-                    ).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    {transferQuote.send_currency}
+                    {item.amount > 0 ? "+" : ""}
+                    {item.amount} {item.currency}
                   </strong>
                 </div>
+              ))
+            )}
+          </section>
+        )}
 
-                <div className="quote-arrow">↓</div>
+        {page === "notifications" && (
+          <section className="card">
+            <h2>Notifications</h2>
 
-                <div className="quote-row received">
-                  <span>{recipient.name} receives</span>
-                  <strong>
-                    {Number(
-                      transferQuote.receive_amount
-                    ).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 8,
-                    })}{" "}
-                    {transferQuote.receive_currency}
-                  </strong>
-                </div>
-
-                <div className="quote-rate">
-                  1 {transferQuote.send_currency} ≈{" "}
-                  {Number(
-                    transferQuote.rate
-                  ).toLocaleString(undefined, {
-                    maximumFractionDigits: 8,
-                  })}{" "}
-                  {transferQuote.receive_currency}
-                </div>
-
-                <button
-                  className="primary-button transfer-confirm"
-                  onClick={confirmTransfer}
-                  disabled={transferLoading}
+            {notifications.length === 0 ? (
+              <p>No notifications.</p>
+            ) : (
+              notifications.map((item) => (
+                <div
+                  className={`notification ${
+                    item.read ? "read" : ""
+                  }`}
+                  key={item.id}
                 >
-                  {transferLoading
-                    ? "Sending..."
-                    : `Confirm transfer to ${recipient.name}`}
-                </button>
-              </div>
+                  <strong>{item.title}</strong>
+                  <p>{item.message}</p>
+                  <small>{item.created_at}</small>
+
+                  {!item.read && (
+                    <button
+                      onClick={() => markNotificationRead(item.id)}
+                    >
+                      Mark as read
+                    </button>
+                  )}
+                </div>
+              ))
             )}
+          </section>
+        )}
 
-            {transferError && (
-              <div className="transfer-error">
-                {transferError}
-              </div>
-            )}
+        {page === "profile" && profile && (
+          <section className="card">
+            <h2>Profile</h2>
 
-            {transferMessage && (
-              <div className="transfer-success">
-                ✓ {transferMessage}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+            <form onSubmit={updateProfile}>
+              <input
+                value={profile.name || ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    name: e.target.value,
+                  })
+                }
+                required
+              />
 
-      <nav className="bottom-navigation">
-        <button
-          className={activeTab === "home" ? "active" : ""}
-          onClick={() => setActiveTab("home")}
-        >
-          <span>⌂</span>
-          Home
-        </button>
+              <input value={profile.email || ""} disabled />
 
-        <button
-          className={activeTab === "earn" ? "active" : ""}
-          onClick={() => setActiveTab("earn")}
-        >
-          <span>◈</span>
-          Earn
-        </button>
+              <button className="primary" disabled={loading}>
+                Save Profile
+              </button>
+            </form>
 
-        <button
-          className={activeTab === "history" ? "active" : ""}
-          onClick={() => setActiveTab("history")}
-        >
-          <span>▤</span>
-          History
-        </button>
+            <hr />
 
-        <button
-          onClick={() =>
-            alert("Profile section coming next.")
-          }
-        >
-          <span>◎</span>
-          Profile
-        </button>
-      </nav>
+            <label>Wallet Currency</label>
+
+            <select value={currentCurrency} onChange={changeCurrency}>
+              <option value="NGN">NGN — Nigerian Naira</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+              <option value="GHS">GHS — Ghanaian Cedi</option>
+              <option value="XOF">XOF — West African CFA Franc</option>
+              <option value="CAD">CAD — Canadian Dollar</option>
+            </select>
+          </section>
+        )}
+      </main>
     </div>
   );
 }
