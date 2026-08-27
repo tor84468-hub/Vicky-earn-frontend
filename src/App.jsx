@@ -17,6 +17,44 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [appInstalled, setAppInstalled] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setAppInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    setAppInstalled(
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true
+    );
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  async function installApp() {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  }
   const [showWelcome, setShowWelcome] = useState(false);
 
   const [auth, setAuth] = useState({
@@ -589,6 +627,11 @@ function App() {
 
         {page === "dashboard" && (
           <>
+            {installPrompt && !appInstalled && (
+              <button className="install-app-button" onClick={installApp}>
+                📲 Install Vicky Earn
+              </button>
+            )}
             <section className="hero-heading">
               <div>
                 <span className="eyebrow">GOOD TO SEE YOU ✨</span>

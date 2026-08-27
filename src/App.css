@@ -1164,3 +1164,26 @@ form .secondary {
     min-width: 70px;
   }
 }
+
+.install-app-button {
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.install-app-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
+}
+
+.install-app-button:active {
+  transform: scale(0.98);
+}
