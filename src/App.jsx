@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import AdminDashboard from "./AdminDashboard";
 
 const API_URL = "https://vicky-earn-backend.onrender.com";
 
 function App() {
+  if (window.location.pathname === "/admin") {
+    return <AdminDashboard />;
+  }
+
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("vicky_user")) || null;
