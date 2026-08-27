@@ -472,7 +472,7 @@ function App() {
           </strong>
 
           <small>
-            Account ID: {wallet?.account_id || "Loading..."}
+            Account ID: {wallet?.account_id || user?.account_id || "Not available"}
           </small>
         </section>
 
