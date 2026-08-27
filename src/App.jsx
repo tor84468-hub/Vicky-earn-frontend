@@ -550,7 +550,7 @@ function App() {
           <div className="wallet-footer">
             <span>Vicky Earn Wallet</span>
             <span>
-              {user.account_id || `VKY-${String(user.id).padStart(6, "0")}`}
+              {user.account_id || "Generating account number..."}
             </span>
           </div>
         </section>
