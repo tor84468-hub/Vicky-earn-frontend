@@ -606,6 +606,20 @@ function App() {
               <div className="balance-amount">
                 {Number(balance).toLocaleString()}
                 <small>{currentCurrency}</small>
+                <select
+                  className="balance-currency"
+                  value={currentCurrency}
+                  onChange={changeCurrency}
+                  aria-label="Change currency"
+                >
+                  <option value="NGN">NGN</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="GHS">GHS</option>
+                  <option value="XOF">XOF</option>
+                  <option value="CAD">CAD</option>
+                </select>
               </div>
 
               <div className="balance-bottom">
