@@ -158,7 +158,7 @@ function App() {
   }
 
   async function claimDailyBonus() {
-    if (!user?.id) return;
+    if (!user?.id || loading) return;
 
     setLoading(true);
     setError("");
@@ -172,7 +172,26 @@ function App() {
         }),
       });
 
-      setMessage(`You earned ${data.amount} ${wallet?.currency || ""}`);
+      const nextBalance = Number(data.balance);
+
+      setWallet((current) =>
+        current
+          ? {
+              ...current,
+              balance: nextBalance,
+            }
+          : current
+      );
+
+      saveUser({
+        ...user,
+        balance: nextBalance,
+      });
+
+      setMessage(
+        `You earned ${data.amount} ${wallet?.currency || "NGN"}`
+      );
+
       await loadUserData();
     } catch (err) {
       setError(err.message);
