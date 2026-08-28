@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import AdminDashboard from "./AdminDashboard";
 
-const API_URL = "https://vicky-earn-backend.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://vicky-earn-backend.onrender.com";
 
 function App() {
   if (window.location.pathname === "/admin") {

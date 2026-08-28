@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_URL = "https://vicky-earn-backend.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://vicky-earn-backend.onrender.com";
 
 export default function AdminDashboard() {
   const [admin, setAdmin] = useState(() => {
