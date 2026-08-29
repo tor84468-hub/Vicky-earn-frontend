@@ -9,13 +9,10 @@ function App() {
     return <AdminDashboard />;
   }
 
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("vicky_user")) || null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  const SESSION_KEY = "vicky_session_token";
 
   const [page, setPage] = useState("dashboard");
   const [authMode, setAuthMode] = useState("login");
@@ -88,26 +85,55 @@ function App() {
   const [recipient, setRecipient] = useState(null);
   const [currency, setCurrency] = useState("");
 
-  function saveUser(nextUser) {
+  function saveUser(nextUser, token) {
     setUser(nextUser);
-    localStorage.setItem("vicky_user", JSON.stringify(nextUser));
+
+    if (token) {
+      localStorage.setItem(SESSION_KEY, token);
+    }
   }
 
-  function logout() {
-    localStorage.removeItem("vicky_user");
+  async function logout() {
+    const token = localStorage.getItem(SESSION_KEY);
+
+    try {
+      if (token) {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch {
+      // Continue logout locally even if the server is unavailable.
+    }
+
+    localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setWallet(null);
     setProfile(null);
+    setTasks([]);
+    setTransactions([]);
+    setNotifications([]);
     setPage("dashboard");
   }
 
   async function api(path, options = {}) {
+    const token = localStorage.getItem(SESSION_KEY);
+
     const response = await fetch(`${API_URL}${path}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {}),
         ...(options.headers || {}),
       },
-      ...options,
     });
 
     const data = await response.json().catch(() => ({
@@ -181,10 +207,63 @@ function App() {
   }
 
   useEffect(() => {
-    if (user?.id) {
+    let cancelled = false;
+
+    async function restoreSession() {
+      const token = localStorage.getItem(SESSION_KEY);
+
+      if (!token) {
+        if (!cancelled) {
+          setSessionReady(true);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/auth/session`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.success || !data?.user) {
+          localStorage.removeItem(SESSION_KEY);
+
+          if (!cancelled) {
+            setUser(null);
+          }
+
+          return;
+        }
+
+        if (!cancelled) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        console.error("Session restore failed:", err);
+      } finally {
+        if (!cancelled) {
+          setSessionReady(true);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sessionReady && user?.id) {
       loadUserData();
     }
-  }, [user?.id]);
+  }, [sessionReady, user?.id]);
 
   async function handleAuth(event) {
     event.preventDefault();
@@ -211,7 +290,7 @@ function App() {
         body: JSON.stringify(body),
       });
 
-      saveUser(data.user);
+      saveUser(data.user, data.session_token || data.token);
       setPage("dashboard");
 
       if (authMode === "register") {
