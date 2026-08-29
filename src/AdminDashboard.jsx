@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://vicky-earn-backend.onrender.com";
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://vicky-earn-backend.onrender.com";
 
 export default function AdminDashboard() {
   const [admin, setAdmin] = useState(() => {
@@ -25,11 +27,7 @@ export default function AdminDashboard() {
     const response = await fetch(`${API_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
-        ...(token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
       ...options,
@@ -49,42 +47,41 @@ export default function AdminDashboard() {
 
   async function login(event) {
     event.preventDefault();
-
     setLoading(true);
     setError("");
 
     try {
-      const result = await fetch(`${API_URL}/api/admin/login`, {
+      const response = await fetch(`${API_URL}/api/admin/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
+          email: email.trim().toLowerCase(),
           password,
         }),
       });
 
-      const response = await result.json();
+      const result = await response.json();
 
-      if (!result.ok || !response.success) {
+      if (!response.ok || !result.success) {
         throw new Error(
-          response.message || "Invalid admin email or password"
+          result.message || "Invalid admin email or password"
         );
       }
 
       localStorage.setItem(
         "vicky_admin",
-        JSON.stringify(response.admin)
+        JSON.stringify(result.admin)
       );
 
       localStorage.setItem(
         "vicky_admin_token",
-        response.token
+        result.token
       );
 
-      setAdmin(response.admin);
-      setToken(response.token);
+      setAdmin(result.admin);
+      setToken(result.token);
       setPassword("");
     } catch (err) {
       setError(err.message);
@@ -105,10 +102,12 @@ export default function AdminDashboard() {
     } catch (err) {
       setError(err.message);
 
+      const msg = err.message.toLowerCase();
+
       if (
-        err.message.toLowerCase().includes("authentication") ||
-        err.message.toLowerCase().includes("expired") ||
-        err.message.toLowerCase().includes("invalid")
+        msg.includes("authentication") ||
+        msg.includes("expired") ||
+        msg.includes("invalid")
       ) {
         logout();
       }
@@ -147,29 +146,38 @@ export default function AdminDashboard() {
     return (
       <div className="admin-login-page">
         <div className="admin-login-card">
-          <div className="admin-logo">V</div>
+          <div className="admin-login-logo">V</div>
 
-          <h1>Vicky Earn Admin</h1>
-          <p>Secure administration dashboard</p>
+          <div className="admin-login-brand">
+            <strong>VICKY EARN</strong>
+            <span>ADMINISTRATION</span>
+          </div>
+
+          <div className="admin-login-heading">
+            <h1>Administrator Login</h1>
+            <p>Sign in to manage your Vicky Earn platform.</p>
+          </div>
 
           <form onSubmit={login}>
-            <label>Admin email</label>
+            <label>ADMIN EMAIL</label>
 
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Admin email"
+              placeholder="Enter admin email"
+              autoComplete="username"
               required
             />
 
-            <label>Admin password</label>
+            <label>ADMIN PASSWORD</label>
 
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin password"
+              placeholder="Enter admin password"
+              autoComplete="current-password"
               required
             />
 
@@ -179,51 +187,93 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            <button type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Login to Admin"}
+            <button
+              className="admin-login-button"
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? "AUTHENTICATING..." : "SIGN IN"}
             </button>
           </form>
 
           <a href="/" className="admin-back">
-            ← Back to Vicky Earn
+            ← Return to Vicky Earn
           </a>
+
+          <div className="admin-login-footer">
+            Authorized administration only
+          </div>
         </div>
       </div>
     );
   }
 
   const stats = data?.stats || {};
+  const users = data?.users || [];
+  const transactions = data?.transactions || [];
+  const withdrawals = data?.withdrawals || [];
+  const revenue = data?.revenue || [];
 
   return (
     <div className="admin-page">
       <header className="admin-header">
-        <div>
-          <div className="admin-brand">
-            <div className="admin-mini-logo">V</div>
+        <div className="admin-brand">
+          <div className="admin-mini-logo">V</div>
 
-            <div>
-              <h1>Vicky Earn Admin</h1>
-              <span>Administration & Monitoring</span>
-            </div>
+          <div>
+            <h1>Vicky Earn</h1>
+            <span>Administration Console</span>
           </div>
         </div>
 
-        <div className="admin-header-actions">
-          <span>
-            👤 {admin.name}
-          </span>
+        <div className="admin-header-right">
+          <div className="admin-user">
+            <div className="admin-user-icon">A</div>
 
-          <button onClick={loadDashboard}>
+            <div>
+              <strong>{admin.name}</strong>
+              <span>Administrator</span>
+            </div>
+          </div>
+
+          <button
+            className="admin-refresh"
+            onClick={loadDashboard}
+            disabled={loading}
+          >
             {loading ? "Refreshing..." : "↻ Refresh"}
           </button>
 
-          <button onClick={logout}>
+          <button
+            className="admin-logout"
+            onClick={logout}
+          >
             Logout
           </button>
         </div>
       </header>
 
       <main className="admin-content">
+        <div className="admin-page-title">
+          <div>
+            <span className="admin-eyebrow">
+              VICKY EARN / ADMIN
+            </span>
+
+            <h2>Dashboard Overview</h2>
+
+            <p>
+              Monitor users, transactions, withdrawals and
+              platform revenue.
+            </p>
+          </div>
+
+          <div className="admin-status">
+            <span></span>
+            SYSTEM OPERATIONAL
+          </div>
+        </div>
+
         {error && (
           <div className="admin-error admin-wide">
             {error}
@@ -231,105 +281,144 @@ export default function AdminDashboard() {
         )}
 
         <section className="admin-stat-grid">
-          <div className="admin-stat">
-            <span>👥 Total Users</span>
+          <div className="admin-stat-card">
+            <span className="admin-stat-icon">01</span>
+            <small>TOTAL USERS</small>
             <strong>{stats.total_users ?? 0}</strong>
+            <em>Registered accounts</em>
           </div>
 
-          <div className="admin-stat">
-            <span>🆕 New Users Today</span>
+          <div className="admin-stat-card">
+            <span className="admin-stat-icon">02</span>
+            <small>NEW USERS TODAY</small>
             <strong>{stats.new_users_today ?? 0}</strong>
+            <em>Created today</em>
           </div>
 
-          <div className="admin-stat">
-            <span>💰 User Balances</span>
+          <div className="admin-stat-card">
+            <span className="admin-stat-icon">03</span>
+            <small>USER BALANCES</small>
             <strong>
-              {Number(stats.total_balance || 0).toLocaleString()}
+              {Number(
+                stats.total_balance || 0
+              ).toLocaleString()}
             </strong>
+            <em>Combined wallet balance</em>
           </div>
 
-          <div className="admin-stat profit">
-            <span>💵 Admin Profit</span>
+          <div className="admin-stat-card admin-profit-card">
+            <span className="admin-stat-icon">04</span>
+            <small>ADMIN PROFIT</small>
             <strong>
-              {Number(stats.platform_revenue || 0).toLocaleString()}
+              {Number(
+                stats.platform_revenue || 0
+              ).toLocaleString()}
             </strong>
+            <em>Platform revenue</em>
           </div>
 
-          <div className="admin-stat">
-            <span>🧾 Transactions</span>
-            <strong>{stats.total_transactions ?? 0}</strong>
+          <div className="admin-stat-card">
+            <span className="admin-stat-icon">05</span>
+            <small>TRANSACTIONS</small>
+            <strong>
+              {stats.total_transactions ?? 0}
+            </strong>
+            <em>Total transactions</em>
           </div>
 
-          <div className="admin-stat">
-            <span>🏦 Withdrawals</span>
-            <strong>{stats.total_withdrawals ?? 0}</strong>
+          <div className="admin-stat-card">
+            <span className="admin-stat-icon">06</span>
+            <small>WITHDRAWALS</small>
+            <strong>
+              {stats.total_withdrawals ?? 0}
+            </strong>
+            <em>Total withdrawal requests</em>
           </div>
 
-          <div className="admin-stat warning">
-            <span>⏳ Pending Withdrawals</span>
-            <strong>{stats.pending_withdrawals ?? 0}</strong>
+          <div className="admin-stat-card admin-warning-card">
+            <span className="admin-stat-icon">07</span>
+            <small>PENDING WITHDRAWALS</small>
+            <strong>
+              {stats.pending_withdrawals ?? 0}
+            </strong>
+            <em>Require attention</em>
           </div>
         </section>
 
-        <section className="admin-section">
-          <div className="admin-section-title">
-            <h2>Users</h2>
-            <span>{data?.users?.length || 0} accounts</span>
-          </div>
-
+        <AdminSection
+          title="Registered Users"
+          subtitle="Customer accounts currently registered"
+          count={`${users.length} accounts`}
+        >
           <div className="admin-table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Account ID</th>
-                  <th>Balance</th>
-                  <th>Currency</th>
-                  <th>Joined</th>
+                  <th>NAME</th>
+                  <th>EMAIL</th>
+                  <th>ACCOUNT ID</th>
+                  <th>BALANCE</th>
+                  <th>CURRENCY</th>
+                  <th>JOINED</th>
                 </tr>
               </thead>
 
               <tbody>
-                {(data?.users || []).map((user) => (
+                {users.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.id}</td>
-                    <td>{user.name}</td>
+                    <td>#{user.id}</td>
+                    <td className="admin-name-cell">
+                      {user.name}
+                    </td>
                     <td>{user.email}</td>
-                    <td>{user.account_id}</td>
-                    <td>{Number(user.balance || 0).toLocaleString()}</td>
-                    <td>{user.currency}</td>
-                    <td>{user.created_at}</td>
+                    <td>
+                      <span className="admin-account-id">
+                        {user.account_id || "—"}
+                      </span>
+                    </td>
+                    <td>
+                      {Number(
+                        user.balance || 0
+                      ).toLocaleString()}
+                    </td>
+                    <td>{user.currency || "NGN"}</td>
+                    <td>{user.created_at || "—"}</td>
                   </tr>
                 ))}
+
+                {users.length === 0 && (
+                  <EmptyRow
+                    colSpan="7"
+                    text="No registered users found."
+                  />
+                )}
               </tbody>
             </table>
           </div>
-        </section>
+        </AdminSection>
 
-        <section className="admin-section">
-          <div className="admin-section-title">
-            <h2>Recent Transactions</h2>
-            <span>{data?.transactions?.length || 0}</span>
-          </div>
-
+        <AdminSection
+          title="Recent Transactions"
+          subtitle="Latest activity across user wallets"
+          count={`${transactions.length} records`}
+        >
           <div className="admin-table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Amount</th>
-                  <th>Currency</th>
-                  <th>Description</th>
-                  <th>Date</th>
+                  <th>TYPE</th>
+                  <th>USER</th>
+                  <th>EMAIL</th>
+                  <th>AMOUNT</th>
+                  <th>CURRENCY</th>
+                  <th>DESCRIPTION</th>
+                  <th>DATE</th>
                 </tr>
               </thead>
 
               <tbody>
-                {(data?.transactions || []).map((tx) => (
+                {transactions.map((tx) => (
                   <tr key={tx.id}>
                     <td>
                       <span className="admin-badge">
@@ -338,46 +427,56 @@ export default function AdminDashboard() {
                     </td>
                     <td>{tx.name}</td>
                     <td>{tx.email}</td>
-                    <td>{Number(tx.amount || 0).toLocaleString()}</td>
+                    <td className="admin-money">
+                      {Number(
+                        tx.amount || 0
+                      ).toLocaleString()}
+                    </td>
                     <td>{tx.currency}</td>
-                    <td>{tx.description}</td>
-                    <td>{tx.created_at}</td>
+                    <td>{tx.description || "—"}</td>
+                    <td>{tx.created_at || "—"}</td>
                   </tr>
                 ))}
+
+                {transactions.length === 0 && (
+                  <EmptyRow
+                    colSpan="7"
+                    text="No transactions recorded yet."
+                  />
+                )}
               </tbody>
             </table>
           </div>
-        </section>
+        </AdminSection>
 
-        <section className="admin-section">
-          <div className="admin-section-title">
-            <h2>Withdrawals</h2>
-            <span>{data?.withdrawals?.length || 0}</span>
-          </div>
-
+        <AdminSection
+          title="Withdrawals"
+          subtitle="Review customer cash-out requests"
+          count={`${withdrawals.length} records`}
+        >
           <div className="admin-table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Amount</th>
-                  <th>Currency</th>
-                  <th>Method</th>
-                  <th>Account</th>
-                  <th>Status</th>
-                  <th>Date</th>
+                  <th>USER</th>
+                  <th>EMAIL</th>
+                  <th>AMOUNT</th>
+                  <th>CURRENCY</th>
+                  <th>METHOD</th>
+                  <th>ACCOUNT</th>
+                  <th>STATUS</th>
+                  <th>DATE</th>
                 </tr>
               </thead>
 
               <tbody>
-                {(data?.withdrawals || []).map((withdrawal) => (
+                {withdrawals.map((withdrawal) => (
                   <tr key={withdrawal.id}>
-                    <td>{withdrawal.id}</td>
+                    <td>#{withdrawal.id}</td>
                     <td>{withdrawal.name}</td>
                     <td>{withdrawal.email}</td>
-                    <td>
+                    <td className="admin-money">
                       {Number(
                         withdrawal.amount || 0
                       ).toLocaleString()}
@@ -387,69 +486,108 @@ export default function AdminDashboard() {
                     <td>{withdrawal.account}</td>
                     <td>
                       <span
-                        className={
+                        className={`admin-status-badge ${
                           withdrawal.status === "pending"
-                            ? "admin-status pending"
-                            : "admin-status"
-                        }
+                            ? "pending"
+                            : withdrawal.status === "completed"
+                            ? "completed"
+                            : "other"
+                        }`}
                       >
                         {withdrawal.status}
                       </span>
                     </td>
-                    <td>{withdrawal.created_at}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="admin-section">
-          <div className="admin-section-title">
-            <h2>Platform Revenue</h2>
-            <span>
-              {data?.revenue?.length || 0} records
-            </span>
-          </div>
-
-          <div className="admin-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Amount</th>
-                  <th>Currency</th>
-                  <th>Description</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {(data?.revenue || []).map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.type}</td>
-                    <td>
-                      {Number(item.amount || 0).toLocaleString()}
-                    </td>
-                    <td>{item.currency}</td>
-                    <td>{item.description}</td>
-                    <td>{item.created_at}</td>
+                    <td>{withdrawal.created_at || "—"}</td>
                   </tr>
                 ))}
 
-                {(!data?.revenue ||
-                  data.revenue.length === 0) && (
-                  <tr>
-                    <td colSpan="5" className="admin-empty">
-                      No platform revenue recorded yet.
-                    </td>
-                  </tr>
+                {withdrawals.length === 0 && (
+                  <EmptyRow
+                    colSpan="9"
+                    text="No withdrawals recorded yet."
+                  />
                 )}
               </tbody>
             </table>
           </div>
-        </section>
+        </AdminSection>
+
+        <AdminSection
+          title="Platform Revenue"
+          subtitle="Revenue generated by the platform"
+          count={`${revenue.length} records`}
+        >
+          <div className="admin-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>TYPE</th>
+                  <th>AMOUNT</th>
+                  <th>CURRENCY</th>
+                  <th>DESCRIPTION</th>
+                  <th>DATE</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {revenue.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.type}</td>
+                    <td className="admin-money">
+                      {Number(
+                        item.amount || 0
+                      ).toLocaleString()}
+                    </td>
+                    <td>{item.currency}</td>
+                    <td>{item.description || "—"}</td>
+                    <td>{item.created_at || "—"}</td>
+                  </tr>
+                ))}
+
+                {revenue.length === 0 && (
+                  <EmptyRow
+                    colSpan="5"
+                    text="No platform revenue recorded yet."
+                  />
+                )}
+              </tbody>
+            </table>
+          </div>
+        </AdminSection>
+
+        <footer className="admin-footer">
+          <span>VICKY EARN</span>
+          <span>Administrative Console</span>
+          <span>© {new Date().getFullYear()}</span>
+        </footer>
       </main>
     </div>
+  );
+}
+
+function AdminSection({ title, subtitle, count, children }) {
+  return (
+    <section className="admin-section">
+      <div className="admin-section-title">
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+
+        <span>{count}</span>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function EmptyRow({ colSpan, text }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="admin-empty">
+        {text}
+      </td>
+    </tr>
   );
 }
