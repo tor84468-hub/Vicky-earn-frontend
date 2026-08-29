@@ -140,14 +140,43 @@ function App() {
         api(`/api/profile/${user.id}`),
       ]);
 
+      const freshUser = profileResponse.user;
+
+      if (!freshUser?.id) {
+        throw new Error("Invalid user session");
+      }
+
+      const updatedUser = {
+        ...user,
+        ...freshUser,
+      };
+
+      saveUser(updatedUser);
+
       setWallet(walletResponse.wallet);
       setTasks(taskResponse.tasks || []);
       setTransactions(transactionResponse.transactions || []);
       setNotifications(notificationResponse.notifications || []);
-      setProfile(profileResponse.user);
-      setCurrency(walletResponse.wallet.currency);
+      setProfile(freshUser);
+      setCurrency(walletResponse.wallet?.currency || freshUser.currency || "NGN");
+      setError("");
     } catch (err) {
-      setError(err.message);
+      console.error("Failed to load user data:", err);
+
+      if (
+        err.message === "User not found" ||
+        err.message === "Invalid user session"
+      ) {
+        localStorage.removeItem("vicky_user");
+        setUser(null);
+        setWallet(null);
+        setProfile(null);
+        setTransactions([]);
+        setNotifications([]);
+        setError("Your saved login session expired. Please log in again.");
+      } else {
+        setError(err.message);
+      }
     }
   }
 
