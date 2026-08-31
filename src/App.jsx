@@ -494,7 +494,7 @@ function App() {
       });
 
       setCurrency(nextCurrency);
-      saveUser(data.user);
+      saveUser(data.user, data.session_token || data.token || "");
       setMessage("Currency updated successfully");
       await loadUserData();
     } catch (err) {
