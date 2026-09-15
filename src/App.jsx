@@ -4,6 +4,252 @@ import AdminDashboard from "./AdminDashboard";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://vicky-earn-backend.onrender.com";
 
+
+async function loadVicBalance(address) {
+  if (!address) return;
+  setVicLoading(true);
+  setVicError("");
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "/api"}/vickycoin/balance/${encodeURIComponent(address)}`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Unable to load VIC balance");
+    }
+
+    setVicBalance(data);
+  } catch (error) {
+    setVicError(error.message);
+  } finally {
+    setVicLoading(false);
+  }
+}
+
+
+function webauthnBase64ToBytes(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function webauthnBytesToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function webauthnPrepareRegistrationOptions(options) {
+  const publicKey = {
+    ...options,
+    challenge: webauthnBase64ToBytes(options.challenge),
+    user: {
+      ...options.user,
+      id: webauthnBase64ToBytes(options.user.id),
+    },
+  };
+
+  if (Array.isArray(options.excludeCredentials)) {
+    publicKey.excludeCredentials = options.excludeCredentials.map(
+      (item) => ({
+        ...item,
+        id: webauthnBase64ToBytes(item.id),
+      })
+    );
+  }
+
+  return publicKey;
+}
+
+function webauthnPrepareAuthenticationOptions(options) {
+  const publicKey = {
+    ...options,
+    challenge: webauthnBase64ToBytes(options.challenge),
+  };
+
+  if (Array.isArray(options.allowCredentials)) {
+    publicKey.allowCredentials = options.allowCredentials.map(
+      (item) => ({
+        ...item,
+        id: webauthnBase64ToBytes(item.id),
+      })
+    );
+  }
+
+  return publicKey;
+}
+
+function webauthnRegistrationCredentialToJSON(credential) {
+  return {
+    id: credential.id,
+    rawId: webauthnBytesToBase64(credential.rawId),
+    response: {
+      clientDataJSON: webauthnBytesToBase64(
+        credential.response.clientDataJSON
+      ),
+      attestationObject: webauthnBytesToBase64(
+        credential.response.attestationObject
+      ),
+    },
+    type: credential.type,
+  };
+}
+
+function webauthnAuthenticationCredentialToJSON(credential) {
+  return {
+    id: credential.id,
+    rawId: webauthnBytesToBase64(credential.rawId),
+    response: {
+      authenticatorData: webauthnBytesToBase64(
+        credential.response.authenticatorData
+      ),
+      clientDataJSON: webauthnBytesToBase64(
+        credential.response.clientDataJSON
+      ),
+      signature: webauthnBytesToBase64(
+        credential.response.signature
+      ),
+      userHandle: credential.response.userHandle
+        ? webauthnBytesToBase64(credential.response.userHandle)
+        : null,
+    },
+    type: credential.type,
+  };
+}
+
+async function enableFingerprintLogin(sessionToken) {
+  if (!window.PublicKeyCredential || !navigator.credentials) {
+    throw new Error(
+      "Fingerprint/passkey login is not supported on this browser."
+    );
+  }
+
+  const optionsResponse = await fetch(
+    `${API_URL}/auth/webauthn/register/options`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+    }
+  );
+
+  const options = await optionsResponse.json();
+
+  if (!optionsResponse.ok) {
+    throw new Error(
+      options.error || "Unable to start fingerprint registration."
+    );
+  }
+
+  const credential = await navigator.credentials.create({
+    publicKey: webauthnPrepareRegistrationOptions(options),
+  });
+
+  if (!credential) {
+    throw new Error("Fingerprint registration was cancelled.");
+  }
+
+  const verifyResponse = await fetch(
+    `${API_URL}/auth/webauthn/register/verify`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify(
+        webauthnRegistrationCredentialToJSON(credential)
+      ),
+    }
+  );
+
+  const result = await verifyResponse.json();
+
+  if (!verifyResponse.ok) {
+    throw new Error(
+      result.error || "Fingerprint registration failed."
+    );
+  }
+
+  return result;
+}
+
+async function loginWithFingerprint() {
+  if (!window.PublicKeyCredential || !navigator.credentials) {
+    throw new Error(
+      "Fingerprint/passkey login is not supported on this browser."
+    );
+  }
+
+  const optionsResponse = await fetch(
+    `${API_URL}/auth/webauthn/login/options`,
+    {
+      method: "POST",
+    }
+  );
+
+  const options = await optionsResponse.json();
+
+  if (!optionsResponse.ok) {
+    throw new Error(
+      options.error || "Unable to start fingerprint login."
+    );
+  }
+
+  const credential = await navigator.credentials.get({
+    publicKey: webauthnPrepareAuthenticationOptions(options),
+  });
+
+  if (!credential) {
+    throw new Error("Fingerprint login was cancelled.");
+  }
+
+  const verifyResponse = await fetch(
+    `${API_URL}/auth/webauthn/login/verify`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        webauthnAuthenticationCredentialToJSON(credential)
+      ),
+    }
+  );
+
+  const result = await verifyResponse.json();
+
+  if (!verifyResponse.ok) {
+    throw new Error(
+      result.error || "Fingerprint login failed."
+    );
+  }
+
+  return result;
+}
+
 function App() {
   if (window.location.pathname === "/admin") {
     return <AdminDashboard />;
@@ -66,6 +312,10 @@ function App() {
   });
 
   const [wallet, setWallet] = useState(null);
+  const [vicBalance, setVicBalance] = useState(null);
+  const [vicLoading, setVicLoading] = useState(false);
+  const [vicError, setVicError] = useState("");
+
   const [tasks, setTasks] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -630,13 +880,69 @@ function App() {
             </button>
           </form>
 
-          <div className="auth-footer">
+          {authMode === "login" && (
+  <button
+    type="button"
+    className="primary auth-submit"
+    disabled={loading}
+    onClick={async () => {
+      try {
+        setLoading(true);
+        setError("");
+        setMessage("");
+
+        const data = await loginWithFingerprint();
+
+        if (!data?.user || !data?.session_token) {
+          throw new Error("Fingerprint login returned an invalid session.");
+        }
+
+        saveUser(data.user, data.session_token);
+        setMessage("Fingerprint login successful.");
+      } catch (err) {
+        setError(err?.message || "Fingerprint login failed.");
+      } finally {
+        setLoading(false);
+      }
+    }}
+  >
+    {loading ? "Please wait..." : "🔐 Login with fingerprint"}
+  </button>
+)}
+
+<div className="auth-footer">
             <span>🔐 Secure account</span>
             <span>⚡ Fast earning</span>
           </div>
         </div>
       </div>
     );
+  }
+
+  async function handleEnableFingerprint() {
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      const token = localStorage.getItem(SESSION_KEY);
+
+      if (!token) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      const result = await enableFingerprintLogin(token);
+
+      setMessage(
+        result?.message || "Fingerprint login enabled successfully."
+      );
+    } catch (err) {
+      setError(
+        err?.message || "Could not enable fingerprint login."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   const balance = wallet?.balance ?? user.balance ?? 0;
@@ -671,6 +977,22 @@ function App() {
 
   return (
     <div className="app">
+<div style={{
+  display: "flex",
+  justifyContent: "flex-end",
+  padding: "10px 16px"
+}}>
+  <button
+    type="button"
+    className="secondary"
+    onClick={handleEnableFingerprint}
+    disabled={loading}
+  >
+    {loading ? "Please wait..." : "🔐 Enable fingerprint login"}
+  </button>
+</div>
+
+
       {showWelcome && (
         <div className="welcome-overlay">
           <div className="sparkle sparkle-one">✦</div>
@@ -775,6 +1097,7 @@ function App() {
                   <option value="GHS">GHS</option>
                   <option value="XOF">XOF</option>
                   <option value="CAD">CAD</option>
+<option value="VIC">VIC — Vicky Coin</option>
                 </select>
               </div>
 
