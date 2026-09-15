@@ -257,6 +257,10 @@ function App() {
 
   const [user, setUser] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [appLocked, setAppLocked] = useState(
+    localStorage.getItem("vicky_fingerprint_lock") === "enabled"
+  );
+  const [unlockingApp, setUnlockingApp] = useState(false);
 
   const SESSION_KEY = "vicky_session_token";
 
@@ -919,6 +923,29 @@ function App() {
     );
   }
 
+  async function unlockVickyEarn() {
+    try {
+      setUnlockingApp(true);
+      setError("");
+
+      const data = await loginWithFingerprint();
+
+      if (!data?.user || !data?.session_token) {
+        throw new Error("Fingerprint unlock returned an invalid session.");
+      }
+
+      saveUser(data.user, data.session_token);
+      setAppLocked(false);
+    } catch (err) {
+      setError(
+        err?.message ||
+        "Fingerprint or phone security verification failed."
+      );
+    } finally {
+      setUnlockingApp(false);
+    }
+  }
+
   async function handleEnableFingerprint() {
     try {
       setLoading(true);
@@ -932,6 +959,8 @@ function App() {
       }
 
       const result = await enableFingerprintLogin(token);
+    localStorage.setItem("vicky_fingerprint_lock", "enabled");
+    setAppLocked(true);
 
       setMessage(
         result?.message || "Fingerprint login enabled successfully."
@@ -974,6 +1003,55 @@ function App() {
       page: "transactions",
     },
   ];
+
+  if (appLocked) {
+    return (
+      <div
+        className="app"
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "420px" }}>
+          <div style={{ fontSize: "64px", marginBottom: "18px" }}>
+            🔐
+          </div>
+
+          <h1>Vicky Earn is locked</h1>
+
+          <p style={{ opacity: 0.75, marginBottom: "28px" }}>
+            Verify your fingerprint or phone security to continue.
+          </p>
+
+          {error && (
+            <div style={{ marginBottom: "18px" }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="primary auth-submit"
+            onClick={unlockVickyEarn}
+            disabled={unlockingApp}
+          >
+            {unlockingApp
+              ? "Verifying..."
+              : "🔐 Unlock Vicky Earn"}
+          </button>
+
+          <p style={{ marginTop: "18px", fontSize: "13px", opacity: 0.65 }}>
+            Use your fingerprint or your phone's secure PIN/passcode.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
