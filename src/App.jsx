@@ -1120,7 +1120,20 @@ function App() {
 
           <div className="user-area">
             <div className="user-avatar">
-              {(user.name || "U").charAt(0).toUpperCase()}
+              {user?.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt="Profile"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            borderRadius: "50%"
+                          }}
+                        />
+                      ) : (
+                        (user.name || "U").charAt(0).toUpperCase()
+                      )}
             </div>
 
             <div className="user-name">
