@@ -1522,6 +1522,134 @@ function App() {
         {page === "profile" && profile && (
           <section className="card form-card">
             <span className="card-label">ACCOUNT</span>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "18px",
+                    marginBottom: "24px"
+                  }}>
+                    <div style={{
+                      width: "88px",
+                      height: "88px",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "2px solid rgba(255,255,255,0.12)",
+                      flexShrink: 0
+                    }}>
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt="Profile"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover"
+                          }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: "38px" }}>👤</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={loading}
+                        onClick={() =>
+                          document
+                            .getElementById("profile-avatar-input")
+                            ?.click()
+                        }
+                      >
+                        {loading ? "Uploading..." : "📷 Change Profile Picture"}
+                      </button>
+
+                      <input
+                        id="profile-avatar-input"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: "none" }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+
+                          if (!file) return;
+
+                          try {
+                            setLoading(true);
+                            setError("");
+                            setMessage("");
+
+                            const token = localStorage.getItem(SESSION_KEY);
+
+                            if (!token) {
+                              throw new Error(
+                                "Your session has expired. Please log in again."
+                              );
+                            }
+
+                            const formData = new FormData();
+                            formData.append("avatar", file);
+
+                            const response = await fetch(
+                              `${API_URL}/api/profile/${user.id}/avatar`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  Authorization: `Bearer ${token}`
+                                },
+                                body: formData
+                              }
+                            );
+
+                            const data = await response.json().catch(() => null);
+
+                            if (!response.ok || !data?.success) {
+                              throw new Error(
+                                data?.message ||
+                                "Profile picture upload failed."
+                              );
+                            }
+
+                            setProfile({
+                              ...profile,
+                              avatar_url: data.avatar_url
+                            });
+
+                            setUser({
+                              ...user,
+                              avatar_url: data.avatar_url
+                            });
+
+                            setMessage(
+                              "Profile picture updated successfully."
+                            );
+                          } catch (err) {
+                            setError(
+                              err?.message ||
+                              "Profile picture upload failed."
+                            );
+                          } finally {
+                            setLoading(false);
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+
+                      <p style={{
+                        marginTop: "8px",
+                        fontSize: "12px",
+                        opacity: 0.65
+                      }}>
+                        JPG, PNG or WebP
+                      </p>
+                    </div>
+                  </div>
+
             <h2>Personal information</h2>
 
             <form onSubmit={updateProfile}>
