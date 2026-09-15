@@ -258,8 +258,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [appLocked, setAppLocked] = useState(
-    !!localStorage.getItem("vicky_session_token") &&
-    localStorage.getItem("vicky_fingerprint_lock") === "enabled"
+    !!localStorage.getItem("vicky_session_token")
   );
   const [unlockingApp, setUnlockingApp] = useState(false);
 
@@ -497,12 +496,7 @@ function App() {
 
         if (!cancelled) {
           setUser(data.user);
-
-          if (
-            localStorage.getItem("vicky_fingerprint_lock") === "enabled"
-          ) {
-            setAppLocked(true);
-          }
+          setAppLocked(true);
         }
       } catch (err) {
         console.error("Session restore failed:", err);
