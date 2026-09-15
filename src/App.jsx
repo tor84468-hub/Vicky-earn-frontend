@@ -146,7 +146,7 @@ async function enableFingerprintLogin(sessionToken) {
   }
 
   const optionsResponse = await fetch(
-    `${API_URL}/auth/webauthn/register/options`,
+    `${API_URL}/api/auth/webauthn/register/options`,
     {
       method: "POST",
       headers: {
@@ -172,7 +172,7 @@ async function enableFingerprintLogin(sessionToken) {
   }
 
   const verifyResponse = await fetch(
-    `${API_URL}/auth/webauthn/register/verify`,
+    `${API_URL}/api/auth/webauthn/register/verify`,
     {
       method: "POST",
       headers: {
@@ -204,7 +204,7 @@ async function loginWithFingerprint() {
   }
 
   const optionsResponse = await fetch(
-    `${API_URL}/auth/webauthn/login/options`,
+    `${API_URL}/api/auth/webauthn/login/options`,
     {
       method: "POST",
     }
@@ -227,7 +227,7 @@ async function loginWithFingerprint() {
   }
 
   const verifyResponse = await fetch(
-    `${API_URL}/auth/webauthn/login/verify`,
+    `${API_URL}/api/auth/webauthn/login/verify`,
     {
       method: "POST",
       headers: {
