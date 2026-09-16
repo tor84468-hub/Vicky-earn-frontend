@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import AdminDashboard from "./AdminDashboard";
 
+import Settings from "./Settings.jsx";
 const API_URL = import.meta.env.VITE_API_URL || "https://vicky-earn-backend.onrender.com";
 
 
@@ -265,6 +266,7 @@ function App() {
   const SESSION_KEY = "vicky_session_token";
 
   const [page, setPage] = useState("dashboard");
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -1005,7 +1007,13 @@ function App() {
       text: "Transactions",
       page: "transactions",
     },
-  ];
+  
+    {
+      page: "settings",
+      icon: "⚙️",
+      title: "Settings",
+      text: "Account & security"
+    },];
 
   if (appLocked) {
     return (
@@ -1142,6 +1150,13 @@ function App() {
               <strong>{user.name}</strong>
               <span>Member</span>
             </div>
+
+            <button
+              className="secondary"
+              onClick={() => setPage("settings")}
+            >
+              ⚙️
+            </button>
 
             <button className="logout-button" onClick={logout}>
               Logout
@@ -1302,9 +1317,17 @@ function App() {
               {page === "withdraw" && "Withdraw 🏦"}
               {page === "transactions" && "Transaction History 📋"}
               {page === "notifications" && "Notifications 🔔"}
-              {page === "profile" && "Your Profile 👤"}
+              {page === "settings" ? "Settings ⚙️" : page === "profile" && "Your Profile 👤"}
             </h1>
           </section>
+        )}
+
+        {page === "settings" && (
+          <Settings
+            user={user}
+            sessionToken={sessionToken}
+            onBack={() => setPage("dashboard")}
+          />
         )}
 
         {page === "earn" && (
@@ -1705,47 +1728,72 @@ function App() {
         )}
       </main>
 
-      <nav className="bottom-nav">
-        <button
-          className={page === "dashboard" ? "active" : ""}
-          onClick={() => setPage("dashboard")}
-        >
-          <span>⌂</span>
-          <small>Home</small>
-        </button>
+      {page === "settings" && user && (
+        <Settings
+          user={user}
+          sessionToken={sessionToken}
+          onBack={() => setPage("dashboard")}
+        />
+      )}
 
-        <button
-          className={page === "earn" ? "active" : ""}
-          onClick={() => setPage("earn")}
-        >
-          <span>✨</span>
-          <small>Earn</small>
-        </button>
+      {moreMenuOpen && (
+  <div className="more-menu">
+    <button onClick={() => { setPage("transactions"); setMoreMenuOpen(false); }}>
+      📋 Transactions
+    </button>
+    <button onClick={() => { setPage("notifications"); setMoreMenuOpen(false); }}>
+      🔔 Notifications
+    </button>
+    <button onClick={() => { setPage("profile"); setMoreMenuOpen(false); }}>
+      👤 Profile
+    </button>
+    <button onClick={() => { setPage("settings"); setMoreMenuOpen(false); }}>
+      ⚙️ Settings
+    </button>
+  </div>
+)}
 
-        <button
-          className={page === "transfer" ? "active" : ""}
-          onClick={() => setPage("transfer")}
-        >
-          <span>💸</span>
-          <small>Transfer</small>
-        </button>
+<nav className="bottom-nav">
+  <button
+    className={page === "dashboard" ? "active" : ""}
+    onClick={() => setPage("dashboard")}
+  >
+    <span>⌂</span>
+    <small>Home</small>
+  </button>
 
-        <button
-          className={page === "transactions" ? "active" : ""}
-          onClick={() => setPage("transactions")}
-        >
-          <span>📋</span>
-          <small>History</small>
-        </button>
+  <button
+    className={page === "earn" ? "active" : ""}
+    onClick={() => setPage("earn")}
+  >
+    <span>✨</span>
+    <small>Earn</small>
+  </button>
 
-        <button
-          className={page === "profile" ? "active" : ""}
-          onClick={() => setPage("profile")}
-        >
-          <span>👤</span>
-          <small>Profile</small>
-        </button>
-      </nav>
+  <button
+    className={page === "transfer" ? "active" : ""}
+    onClick={() => setPage("transfer")}
+  >
+    <span>💸</span>
+    <small>Transfer</small>
+  </button>
+
+  <button
+    className={page === "withdraw" ? "active" : ""}
+    onClick={() => setPage("withdraw")}
+  >
+    <span>🏦</span>
+    <small>Withdraw</small>
+  </button>
+
+  <button
+    className={["transactions", "notifications", "profile", "settings"].includes(page) ? "active" : ""}
+    onClick={() => setMoreMenuOpen((value) => !value)}
+  >
+    <span>☰</span>
+    <small>More</small>
+  </button>
+</nav>
     </div>
   );
 }

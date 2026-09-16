@@ -2116,3 +2116,145 @@ form .secondary {
   }
 }
 
+
+.settings-page {
+  padding-bottom: 40px;
+}
+
+.settings-page .card {
+  min-width: 0;
+}
+
+.settings-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  margin-top: 12px;
+  border-top: 1px solid rgba(127, 127, 127, 0.15);
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px;
+  border-radius: 14px;
+  background: rgba(127, 127, 127, 0.07);
+}
+
+.settings-row > div {
+  min-width: 0;
+}
+
+.settings-row strong,
+.settings-row small {
+  display: block;
+}
+
+.settings-row small {
+  margin-top: 4px;
+  opacity: 0.68;
+  overflow-wrap: anywhere;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.12);
+}
+
+.settings-toggle input {
+  width: 20px;
+  height: 20px;
+}
+
+.settings-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-page form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  background: transparent;
+  color: inherit;
+}
+
+.secondary {
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.secondary:disabled,
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-row button {
+    width: 100%;
+  }
+}
+
+.more-menu {
+  position: fixed;
+  right: 14px;
+  bottom: 78px;
+  z-index: 1000;
+  width: 210px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--card, #ffffff);
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.18);
+}
+
+.more-menu button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 13px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.more-menu button:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+@media (max-width: 700px) {
+  .more-menu {
+    right: 10px;
+    bottom: 72px;
+    width: 190px;
+  }
+}
