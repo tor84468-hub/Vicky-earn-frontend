@@ -199,6 +199,7 @@ export default function AdminDashboard() {
     setAdmin(null);
     setToken("");
     setData(null);
+    setAdminLocked(false);
   }
 
   useEffect(() => {
@@ -206,6 +207,56 @@ export default function AdminDashboard() {
       loadDashboard();
     }
   }, []);
+
+  if (adminLocked && admin && token) {
+    return (
+      <div className="admin-login-page">
+        <div className="admin-login-card">
+          <div className="admin-login-logo">🔐</div>
+
+          <div className="admin-login-brand">
+            <strong>VICKY EARN</strong>
+            <span>ADMINISTRATION</span>
+          </div>
+
+          <div className="admin-login-heading">
+            <h1>Admin Dashboard Locked</h1>
+            <p>
+              Verify your fingerprint or phone security to continue.
+            </p>
+          </div>
+
+          {error && (
+            <div className="admin-error">
+              {error}
+            </div>
+          )}
+
+          <button
+            className="admin-login-button"
+            type="button"
+            onClick={unlockAdminDashboard}
+            disabled={adminFingerprintLoading}
+          >
+            {adminFingerprintLoading
+              ? "VERIFYING..."
+              : "🔐 UNLOCK WITH FINGERPRINT"}
+          </button>
+
+          <p
+            style={{
+              textAlign: "center",
+              marginTop: "14px",
+              fontSize: "13px",
+              opacity: 0.7
+            }}
+          >
+            Fingerprint, face unlock, or secure phone PIN/passcode.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!admin || !token) {
     return (
@@ -351,6 +402,16 @@ export default function AdminDashboard() {
             disabled={loading}
           >
             {loading ? "Refreshing..." : "↻ Refresh"}
+          </button>
+
+          <button
+            type="button"
+            onClick={enableAdminFingerprint}
+            disabled={adminFingerprintLoading}
+          >
+            {adminFingerprintLoading
+              ? "Setting up..."
+              : "🔐 Enable Fingerprint Login"}
           </button>
 
           <button
