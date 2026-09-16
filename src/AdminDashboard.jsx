@@ -17,6 +17,8 @@ export default function AdminDashboard() {
     () => localStorage.getItem("vicky_admin_token") || ""
   );
 
+  const [adminAvatarUploading, setAdminAvatarUploading] = useState(false);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [data, setData] = useState(null);
@@ -87,6 +89,69 @@ export default function AdminDashboard() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function uploadAdminAvatar(file) {
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert("Only JPG, PNG, and WebP images are allowed.");
+      return;
+    }
+
+    try {
+      setAdminAvatarUploading(true);
+
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const response = await fetch(
+        `${API_URL}/api/admin/profile/avatar`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+          "Failed to update admin profile picture."
+        );
+      }
+
+      const updatedAdmin = {
+        ...admin,
+        avatar_url: result.avatar_url,
+      };
+
+      setAdmin(updatedAdmin);
+
+      localStorage.setItem(
+        "vicky_admin",
+        JSON.stringify(updatedAdmin)
+      );
+
+      alert("Admin profile picture updated successfully.");
+    } catch (error) {
+      alert(
+        error?.message ||
+        "Failed to update admin profile picture."
+      );
+    } finally {
+      setAdminAvatarUploading(false);
     }
   }
 
@@ -228,7 +293,51 @@ export default function AdminDashboard() {
 
         <div className="admin-header-right">
           <div className="admin-user">
-            <div className="admin-user-icon">A</div>
+            <label
+              className="admin-user-icon"
+              style={{
+                cursor: adminAvatarUploading
+                  ? "wait"
+                  : "pointer",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "relative"
+              }}
+              title="Change admin profile picture"
+            >
+              {admin?.avatar_url ? (
+                <img
+                  src={admin.avatar_url}
+                  alt="Admin Profile"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "50%"
+                  }}
+                />
+              ) : (
+                "A"
+              )}
+
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: "none" }}
+                disabled={adminAvatarUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+
+                  if (file) {
+                    uploadAdminAvatar(file);
+                  }
+
+                  e.target.value = "";
+                }}
+              />
+            </label>
 
             <div>
               <strong>{admin.name}</strong>
