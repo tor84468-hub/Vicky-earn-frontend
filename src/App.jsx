@@ -527,40 +527,47 @@ function App() {
     setMessage("");
 
     try {
-      const path =
-        authMode === "login"
-          ? "/api/auth/login"
-          : "/api/auth/register";
-
-      const body =
-        authMode === "login"
-          ? {
-              email: auth.email,
-              password: auth.password,
-            }
-          : auth;
-
-      const data = await api(path, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-
-      saveUser(data.user, data.session_token || data.token);
-      setPage("dashboard");
-
       if (authMode === "register") {
-        setShowWelcome(true);
+        const data = await api("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify({
+            name: auth.name,
+            email: auth.email,
+            password: auth.password,
+          }),
+        });
 
+        if (!data?.user || !data?.session_token) {
+          throw new Error("Account creation returned an invalid session.");
+        }
+
+        // Immediately bind this account to the phone's secure
+        // biometric/device-PIN authenticator.
+        const credentialData = await registerWebAuthn(data.session_token);
+
+        if (!credentialData?.success) {
+          throw new Error(
+            credentialData?.error ||
+            "Phone security registration was not completed."
+          );
+        }
+
+        saveUser(data.user, data.session_token);
+        setPage("dashboard");
+        setShowWelcome(true);
         setAuth({
           name: "",
           email: "",
           password: "",
         });
+        setMessage("Account created and phone security enabled.");
       } else {
-        setMessage(data.message || "Welcome back!");
+        throw new Error(
+          "Password login is disabled. Use fingerprint, face unlock, or your secure phone PIN."
+        );
       }
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -863,57 +870,52 @@ function App() {
               />
             </div>
 
-            <div className="input-wrap">
-              <span>🔒</span>
-              <input
-                type="password"
-                placeholder="Password"
-                value={auth.password}
-                onChange={(e) =>
-                  setAuth({ ...auth, password: e.target.value })
-                }
-                required
-              />
-            </div>
+            {authMode === "register" ? (
+              <button className="primary auth-submit" disabled={loading}>
+                {loading
+                  ? "Setting up phone security..."
+                  : "Create account & secure phone"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary auth-submit"
+                disabled={loading}
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    setError("");
+                    setMessage("");
 
-            <button className="primary auth-submit" disabled={loading}>
-              {loading
-                ? "Please wait..."
-                : authMode === "login"
-                ? "Login to Vicky Earn"
-                : "Create my account"}
-            </button>
+                    const data = await loginWithFingerprint();
+
+                    if (!data?.user || !data?.session_token) {
+                      throw new Error(
+                        "Phone security login returned an invalid session."
+                      );
+                    }
+
+                    saveUser(data.user, data.session_token);
+                    setPage("dashboard");
+                    setMessage("Phone security login successful.");
+                  } catch (err) {
+                    setError(
+                      err?.message ||
+                      "Phone security login failed."
+                    );
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                {loading
+                  ? "Verifying phone security..."
+                  : "🔐 Unlock with fingerprint / phone security"}
+              </button>
+            )}
           </form>
 
-          {authMode === "login" && (
-  <button
-    type="button"
-    className="primary auth-submit"
-    disabled={loading}
-    onClick={async () => {
-      try {
-        setLoading(true);
-        setError("");
-        setMessage("");
-
-        const data = await loginWithFingerprint();
-
-        if (!data?.user || !data?.session_token) {
-          throw new Error("Fingerprint login returned an invalid session.");
-        }
-
-        saveUser(data.user, data.session_token);
-        setMessage("Fingerprint login successful.");
-      } catch (err) {
-        setError(err?.message || "Fingerprint login failed.");
-      } finally {
-        setLoading(false);
-      }
-    }}
-  >
-    {loading ? "Please wait..." : "🔐 Login with fingerprint"}
-  </button>
-)}
+          
 
 <div className="auth-footer">
             <span>🔐 Secure account</span>
