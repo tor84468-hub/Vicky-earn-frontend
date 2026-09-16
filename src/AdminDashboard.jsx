@@ -4,6 +4,248 @@ const API_URL =
   import.meta.env.VITE_API_URL ||
   "https://vicky-earn-backend.onrender.com";
 
+
+function base64urlToBytes(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const binary = atob(base64);
+
+  return Uint8Array.from(
+    binary,
+    (char) => char.charCodeAt(0)
+  );
+}
+
+function bytesToBase64url(bytes) {
+  const binary = Array.from(bytes)
+    .map((byte) => String.fromCharCode(byte))
+    .join("");
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function prepareCreationOptions(options) {
+  return {
+    ...options,
+    challenge: base64urlToBytes(options.challenge),
+    user: {
+      ...options.user,
+      id: base64urlToBytes(options.user.id),
+    },
+    excludeCredentials: (
+      options.excludeCredentials || []
+    ).map((item) => ({
+      ...item,
+      id: base64urlToBytes(item.id),
+    })),
+  };
+}
+
+function prepareAuthenticationOptions(options) {
+  return {
+    ...options,
+    challenge: base64urlToBytes(options.challenge),
+    allowCredentials: (
+      options.allowCredentials || []
+    ).map((item) => ({
+      ...item,
+      id: base64urlToBytes(item.id),
+    })),
+  };
+}
+
+function credentialToJSON(credential) {
+  const response = credential.response;
+
+  const result = {
+    id: credential.id,
+    rawId: bytesToBase64url(
+      new Uint8Array(credential.rawId)
+    ),
+    type: credential.type,
+    response: {},
+  };
+
+  if (response.clientDataJSON) {
+    result.response.clientDataJSON =
+      bytesToBase64url(
+        new Uint8Array(response.clientDataJSON)
+      );
+  }
+
+  if (response.attestationObject) {
+    result.response.attestationObject =
+      bytesToBase64url(
+        new Uint8Array(response.attestationObject)
+      );
+  }
+
+  if (response.authenticatorData) {
+    result.response.authenticatorData =
+      bytesToBase64url(
+        new Uint8Array(response.authenticatorData)
+      );
+  }
+
+  if (response.signature) {
+    result.response.signature =
+      bytesToBase64url(
+        new Uint8Array(response.signature)
+      );
+  }
+
+  if (response.userHandle) {
+    result.response.userHandle =
+      bytesToBase64url(
+        new Uint8Array(response.userHandle)
+      );
+  }
+
+  return result;
+}
+
+async function registerAdminFingerprint(token) {
+  if (
+    !window.PublicKeyCredential ||
+    !navigator.credentials
+  ) {
+    throw new Error(
+      "Fingerprint/passkey authentication is not supported on this device."
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/admin/webauthn/register/options`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const options = await response.json();
+
+  if (!response.ok || options.success === false) {
+    throw new Error(
+      options.error ||
+      options.message ||
+      "Unable to start fingerprint registration."
+    );
+  }
+
+  const credential =
+    await navigator.credentials.create({
+      publicKey: prepareCreationOptions(options),
+    });
+
+  if (!credential) {
+    throw new Error(
+      "Fingerprint registration was cancelled."
+    );
+  }
+
+  const verifyResponse = await fetch(
+    `${API_URL}/api/admin/webauthn/register/verify`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(
+        credentialToJSON(credential)
+      ),
+    }
+  );
+
+  const result = await verifyResponse.json();
+
+  if (!verifyResponse.ok || result.success === false) {
+    throw new Error(
+      result.error ||
+      result.message ||
+      "Fingerprint registration failed."
+    );
+  }
+
+  return result;
+}
+
+async function loginWithAdminFingerprint() {
+  if (
+    !window.PublicKeyCredential ||
+    !navigator.credentials
+  ) {
+    throw new Error(
+      "Fingerprint/passkey authentication is not supported on this device."
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/admin/webauthn/login/options`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const options = await response.json();
+
+  if (!response.ok || options.success === false) {
+    throw new Error(
+      options.error ||
+      options.message ||
+      "Unable to start fingerprint login."
+    );
+  }
+
+  const credential =
+    await navigator.credentials.get({
+      publicKey:
+        prepareAuthenticationOptions(options),
+    });
+
+  if (!credential) {
+    throw new Error(
+      "Fingerprint login was cancelled."
+    );
+  }
+
+  const verifyResponse = await fetch(
+    `${API_URL}/api/admin/webauthn/login/verify`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        credentialToJSON(credential)
+      ),
+    }
+  );
+
+  const result = await verifyResponse.json();
+
+  if (!verifyResponse.ok || result.success === false) {
+    throw new Error(
+      result.error ||
+      result.message ||
+      "Admin fingerprint login failed."
+    );
+  }
+
+  return result;
+}
+
 export default function AdminDashboard() {
   const [admin, setAdmin] = useState(() => {
     try {
@@ -18,6 +260,11 @@ export default function AdminDashboard() {
   );
 
   const [adminAvatarUploading, setAdminAvatarUploading] = useState(false);
+
+  const [adminLocked, setAdminLocked] = useState(false);
+
+  const [adminFingerprintLoading, setAdminFingerprintLoading] =
+    useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,6 +332,7 @@ export default function AdminDashboard() {
       setAdmin(result.admin);
       setToken(result.token);
       setPassword("");
+      setAdminLocked(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -155,6 +403,65 @@ export default function AdminDashboard() {
     }
   }
 
+  async function enableAdminFingerprint() {
+    if (!token) return;
+
+    try {
+      setAdminFingerprintLoading(true);
+      setError("");
+
+      await registerAdminFingerprint(token);
+
+      alert(
+        "Fingerprint login enabled successfully."
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+        "Failed to enable admin fingerprint login."
+      );
+    } finally {
+      setAdminFingerprintLoading(false);
+    }
+  }
+
+  async function unlockAdminDashboard() {
+    try {
+      setAdminFingerprintLoading(true);
+      setError("");
+
+      const result =
+        await loginWithAdminFingerprint();
+
+      if (!result?.admin || !result?.token) {
+        throw new Error(
+          "Fingerprint login returned an invalid admin session."
+        );
+      }
+
+      localStorage.setItem(
+        "vicky_admin",
+        JSON.stringify(result.admin)
+      );
+
+      localStorage.setItem(
+        "vicky_admin_token",
+        result.token
+      );
+
+      setAdmin(result.admin);
+      setToken(result.token);
+      setAdminLocked(false);
+    } catch (err) {
+      setError(
+        err?.message ||
+        "Fingerprint or phone security verification failed."
+      );
+    } finally {
+      setAdminFingerprintLoading(false);
+    }
+  }
+
   async function loadDashboard() {
     if (!token) return;
 
@@ -207,56 +514,6 @@ export default function AdminDashboard() {
       loadDashboard();
     }
   }, []);
-
-  if (adminLocked && admin && token) {
-    return (
-      <div className="admin-login-page">
-        <div className="admin-login-card">
-          <div className="admin-login-logo">🔐</div>
-
-          <div className="admin-login-brand">
-            <strong>VICKY EARN</strong>
-            <span>ADMINISTRATION</span>
-          </div>
-
-          <div className="admin-login-heading">
-            <h1>Admin Dashboard Locked</h1>
-            <p>
-              Verify your fingerprint or phone security to continue.
-            </p>
-          </div>
-
-          {error && (
-            <div className="admin-error">
-              {error}
-            </div>
-          )}
-
-          <button
-            className="admin-login-button"
-            type="button"
-            onClick={unlockAdminDashboard}
-            disabled={adminFingerprintLoading}
-          >
-            {adminFingerprintLoading
-              ? "VERIFYING..."
-              : "🔐 UNLOCK WITH FINGERPRINT"}
-          </button>
-
-          <p
-            style={{
-              textAlign: "center",
-              marginTop: "14px",
-              fontSize: "13px",
-              opacity: 0.7
-            }}
-          >
-            Fingerprint, face unlock, or secure phone PIN/passcode.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   if (!admin || !token) {
     return (
